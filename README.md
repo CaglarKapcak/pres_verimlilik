@@ -93,7 +93,7 @@ Node.js 16+
 '''
 # Repository'yi klonla
 git clone <repository-url>
-cd factory-efficiency-system
+cd pres_verim
 
 # Environment dosyalarını hazırla
 cp backend/.env.example backend/.env

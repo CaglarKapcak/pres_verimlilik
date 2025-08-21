@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with TimescaleDB
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    environment:
+      POSTGRES_DB: factory_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: factory123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d factory_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend API
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://admin:factory123@postgres:5432/factory_db
+      SECRET_KEY: your-super-secret-jwt-key-here
+      DEBUG: "True"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_WS_URL: ws://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+
+  # IoT Gateway (optional - can run on separate Raspberry Pi)
+  iot-gateway:
+    build: ./iot-gateway
+    restart: unless-stopped
+    devices:
+      - "/dev/i2c-1:/dev/i2c-1"
+    privileged: true
+    depends_on:
+      - backend
+    environment:
+      MACHINE_ID: 1
+      API_URL: http://backend:8000
+      UPDATE_INTERVAL: 1
+
+volumes:
+  pgdata:
